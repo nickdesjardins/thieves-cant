@@ -21,8 +21,14 @@ export function PhraseTranslator() {
   const [speechSupported, setSpeechSupported] = useState(false);
   
   // Use a ref to keep track of the recognition instance so we can stop it
-  const recognitionRef = typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
   const activeRecognition = useRef<any>(null);
+  const manualStopRef = useRef<boolean>(false);
+  const phraseRef = useRef<string>("");
+  
+  // Keep phraseRef in sync with phrase state
+  useEffect(() => {
+    phraseRef.current = phrase;
+  }, [phrase]);
 
   // Check for speech recognition support
   useEffect(() => {
@@ -208,6 +214,7 @@ export function PhraseTranslator() {
     if (typeof window === "undefined") return;
 
     if (isListening && activeRecognition.current) {
+      manualStopRef.current = true;
       activeRecognition.current.stop();
       setIsListening(false);
       return;
@@ -221,69 +228,94 @@ export function PhraseTranslator() {
     
     setSpeechError(null);
     setIsListening(true); // Optimistic UI update
-    const recognition = new SpeechRecognition();
-    activeRecognition.current = recognition;
+    manualStopRef.current = false;
     
-    recognition.lang = language === "en" ? "en-US" : "fr-FR";
-    recognition.continuous = true; // Keep listening until manually stopped
-    recognition.interimResults = true; // Capture partial phrases
-    
-    recognition.onstart = () => {
-      setIsListening(true);
-    };
-    
-    let finalTranscript = phrase ? phrase + " " : "";
+    const startRecognition = () => {
+      if (manualStopRef.current) return;
+      
+      const recognition = new SpeechRecognition();
+      activeRecognition.current = recognition;
+      
+      recognition.lang = language === "en" ? "en-US" : "fr-FR";
+      recognition.continuous = true; // Still request continuous mode for desktop
+      recognition.interimResults = true;
+      
+      let finalTranscript = phraseRef.current ? phraseRef.current + " " : "";
 
-    recognition.onresult = (event: any) => {
-      let interimTranscript = "";
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interimTranscript += event.results[i][0].transcript;
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
         }
-      }
-      setPhrase(finalTranscript + interimTranscript);
-    };
-    
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error);
-      if (event.error === "network") {
+        setPhrase(finalTranscript + interimTranscript);
+      };
+      
+      recognition.onerror = (event: any) => {
+        if (event.error === "no-speech") {
+          // Ignore no-speech, let it restart onend
+          return;
+        }
+        
+        console.error("Speech recognition error", event.error);
+        manualStopRef.current = true; // Prevent restart on hard errors
+        
+        if (event.error === "network") {
+          setSpeechError(
+            language === "en"
+              ? "Network error: Browser speech recognition service failed to connect."
+              : "Erreur réseau : Le service vocal du navigateur n'a pas pu se connecter."
+          );
+        } else if (event.error === "not-allowed") {
+          setSpeechError(
+             language === "en"
+              ? "Microphone access denied. Please allow microphone permissions."
+              : "Accès au microphone refusé. Veuillez autoriser l'accès."
+          );
+        } else {
+          setSpeechError(
+             language === "en"
+              ? `Speech recognition error: ${event.error}`
+              : `Erreur de reconnaissance vocale: ${event.error}`
+          );
+        }
+        setIsListening(false);
+      };
+      
+      recognition.onend = () => {
+        // Mobile browsers often fire onend on silence. If not manually stopped, restart it.
+        if (!manualStopRef.current) {
+          startRecognition();
+        } else {
+          setIsListening(false);
+        }
+      };
+      
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error("Failed to start speech recognition:", e);
+        manualStopRef.current = true;
         setSpeechError(
           language === "en"
-            ? "Network error: Browser speech recognition service failed to connect."
-            : "Erreur réseau : Le service vocal du navigateur n'a pas pu se connecter."
+            ? "Failed to start microphone. Note: Speech Recognition over a local network IP requires a secure HTTPS connection."
+            : "Échec du démarrage du microphone. Remarque : La reconnaissance vocale sur un réseau local nécessite une connexion HTTPS."
         );
-      } else if (event.error !== "no-speech") {
-        setSpeechError(
-           language === "en"
-            ? `Speech recognition error: ${event.error}`
-            : `Erreur de reconnaissance vocale: ${event.error}`
-        );
-      }
-      if (event.error !== "no-speech") {
         setIsListening(false);
       }
     };
     
-    recognition.onend = () => {
-      // If we are still supposed to be listening (e.g. continuous stopped unexpectedly),
-      // we could potentially restart it here, but for now we'll just stop.
-      setIsListening(false);
-    };
+    // Kick off the first recognition session
+    startRecognition();
     
-    try {
-      recognition.start();
-    } catch (e) {
-      console.error("Failed to start speech recognition:", e);
-      setSpeechError(
-        language === "en"
-          ? "Failed to start microphone. Note: Speech Recognition over a local network IP requires a secure HTTPS connection."
-          : "Échec du démarrage du microphone. Remarque : La reconnaissance vocale sur un réseau local nécessite une connexion HTTPS."
-      );
-      setIsListening(false);
-    }
-  }, [language, isListening, phrase]);
+  }, [language, isListening]);
 
   // Copy to clipboard
   const copyToClipboard = useCallback(async () => {
