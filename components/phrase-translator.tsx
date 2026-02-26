@@ -240,22 +240,32 @@ export function PhraseTranslator() {
       recognition.continuous = true; // Still request continuous mode for desktop
       recognition.interimResults = true;
       
-      let finalTranscript = phraseRef.current ? phraseRef.current + " " : "";
+      // Capture the exact phrase text AT THE MOMENT THIS SESSION STARTS.
+      // We will append all results from THIS session to this base string.
+      const basePhrase = phraseRef.current 
+        ? (phraseRef.current.endsWith(" ") ? phraseRef.current : phraseRef.current + " ") 
+        : "";
 
       recognition.onstart = () => {
         setIsListening(true);
       };
 
       recognition.onresult = (event: any) => {
-        let interimTranscript = "";
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        let sessionFinal = "";
+        let sessionInterim = "";
+        
+        // Loop through ALL results for the current session from 0.
+        // This fixes mobile duplication since Safari/Chrome on mobile
+        // often resets resultIndex to 0 or re-sends earlier final results.
+        for (let i = 0; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+            sessionFinal += event.results[i][0].transcript;
           } else {
-            interimTranscript += event.results[i][0].transcript;
+            sessionInterim += event.results[i][0].transcript;
           }
         }
-        setPhrase(finalTranscript + interimTranscript);
+        
+        setPhrase(basePhrase + sessionFinal + sessionInterim);
       };
       
       recognition.onerror = (event: any) => {
