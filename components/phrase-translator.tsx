@@ -210,10 +210,12 @@ export function PhraseTranslator() {
   }, [translatedWords]);
 
   // Voice recognition handler
+  // Voice recognition handler
   const toggleListening = useCallback(() => {
     if (typeof window === "undefined") return;
 
-    if (isListening && activeRecognition.current) {
+    // IF WE ARE ALREADY LISTENING (or trying to start)
+    if (activeRecognition.current && !manualStopRef.current) {
       manualStopRef.current = true;
       activeRecognition.current.stop();
       setIsListening(false);
@@ -237,45 +239,53 @@ export function PhraseTranslator() {
       activeRecognition.current = recognition;
       
       recognition.lang = language === "en" ? "en-US" : "fr-FR";
-      recognition.continuous = true; // Still request continuous mode for desktop
+      recognition.continuous = false; // Trust our auto-restart to do continuous listening cleanly
       recognition.interimResults = true;
       
-      // Capture the exact phrase text AT THE MOMENT THIS SESSION STARTS.
-      // We will append all results from THIS session to this base string.
-      const basePhrase = phraseRef.current 
+      const sessionBasePhrase = phraseRef.current 
         ? (phraseRef.current.endsWith(" ") ? phraseRef.current : phraseRef.current + " ") 
         : "";
 
       recognition.onstart = () => {
+        if (activeRecognition.current !== recognition) return;
         setIsListening(true);
       };
 
       recognition.onresult = (event: any) => {
-        let sessionFinal = "";
-        let sessionInterim = "";
+        if (activeRecognition.current !== recognition) return;
         
-        // Loop through ALL results for the current session from 0.
-        // This fixes mobile duplication since Safari/Chrome on mobile
-        // often resets resultIndex to 0 or re-sends earlier final results.
+        // Accumulate all results for this session
+        let sessionTranscript = "";
         for (let i = 0; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            sessionFinal += event.results[i][0].transcript;
-          } else {
-            sessionInterim += event.results[i][0].transcript;
-          }
+          sessionTranscript += event.results[i][0].transcript;
         }
         
-        setPhrase(basePhrase + sessionFinal + sessionInterim);
+        // Smart deduplication for buggy Android browsers that return cumulative history across auto-restarts
+        let newPhrase = "";
+        const baseTrimmed = sessionBasePhrase.trim().toLowerCase();
+        const finalSessionTrimmed = sessionTranscript.trim().toLowerCase();
+        
+        if (baseTrimmed && (finalSessionTrimmed === baseTrimmed || finalSessionTrimmed.startsWith(baseTrimmed + " "))) {
+          // The browser retained the old speech history across restarts, just use its cumulative string
+          newPhrase = sessionTranscript;
+        } else {
+          // Standard browser behavior: prepend our base phrase
+          const needsSpace = sessionBasePhrase && !sessionBasePhrase.endsWith(" ") && sessionTranscript && !sessionTranscript.startsWith(" ");
+          newPhrase = sessionBasePhrase + (needsSpace ? " " : "") + sessionTranscript;
+        }
+        
+        setPhrase(newPhrase);
       };
       
       recognition.onerror = (event: any) => {
+        if (activeRecognition.current !== recognition) return;
+        
         if (event.error === "no-speech") {
-          // Ignore no-speech, let it restart onend
           return;
         }
         
         console.error("Speech recognition error", event.error);
-        manualStopRef.current = true; // Prevent restart on hard errors
+        manualStopRef.current = true;
         
         if (event.error === "network") {
           setSpeechError(
@@ -300,11 +310,13 @@ export function PhraseTranslator() {
       };
       
       recognition.onend = () => {
-        // Mobile browsers often fire onend on silence. If not manually stopped, restart it.
+        if (activeRecognition.current !== recognition) return;
+        
         if (!manualStopRef.current) {
           startRecognition();
         } else {
           setIsListening(false);
+          activeRecognition.current = null;
         }
       };
       
@@ -325,7 +337,7 @@ export function PhraseTranslator() {
     // Kick off the first recognition session
     startRecognition();
     
-  }, [language, isListening]);
+  }, [language]);
 
   // Copy to clipboard
   const copyToClipboard = useCallback(async () => {
