@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { englishToCant, frenchToArgot, cantToEnglish, argotToFrench } from "@/lib/thieves-cant-data";
 import { useI18n } from "@/lib/i18n";
-import { Mic, MicOff, Volume2, Copy, Check, RefreshCw } from "lucide-react";
+import { Mic, Square, Volume2, Copy, Check, RefreshCw } from "lucide-react";
 
 interface TranslatedWord {
   original: string;
@@ -16,8 +16,13 @@ export function PhraseTranslator() {
   const { language } = useI18n();
   const [phrase, setPhrase] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  
+  // Use a ref to keep track of the recognition instance so we can stop it
+  const recognitionRef = typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+  const activeRecognition = useRef<any>(null);
 
   // Check for speech recognition support
   useEffect(() => {
@@ -199,36 +204,86 @@ export function PhraseTranslator() {
   }, [translatedWords]);
 
   // Voice recognition handler
-  const startListening = useCallback(() => {
+  const toggleListening = useCallback(() => {
     if (typeof window === "undefined") return;
+
+    if (isListening && activeRecognition.current) {
+      activeRecognition.current.stop();
+      setIsListening(false);
+      return;
+    }
     
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    if (!SpeechRecognition) {
+      setSpeechError(language === "en" ? "Speech recognition is not supported in this browser." : "La reconnaissance vocale n'est pas prise en charge.");
+      return;
+    }
     
+    setSpeechError(null);
+    setIsListening(true); // Optimistic UI update
     const recognition = new SpeechRecognition();
+    activeRecognition.current = recognition;
+    
     recognition.lang = language === "en" ? "en-US" : "fr-FR";
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true; // Keep listening until manually stopped
+    recognition.interimResults = true; // Capture partial phrases
     
     recognition.onstart = () => {
       setIsListening(true);
     };
     
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript;
-      setPhrase((prev) => prev + (prev ? " " : "") + transcript);
+    let finalTranscript = phrase ? phrase + " " : "";
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+      setPhrase(finalTranscript + interimTranscript);
     };
     
-    recognition.onerror = () => {
-      setIsListening(false);
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      if (event.error === "network") {
+        setSpeechError(
+          language === "en"
+            ? "Network error: Browser speech recognition service failed to connect."
+            : "Erreur réseau : Le service vocal du navigateur n'a pas pu se connecter."
+        );
+      } else if (event.error !== "no-speech") {
+        setSpeechError(
+           language === "en"
+            ? `Speech recognition error: ${event.error}`
+            : `Erreur de reconnaissance vocale: ${event.error}`
+        );
+      }
+      if (event.error !== "no-speech") {
+        setIsListening(false);
+      }
     };
     
     recognition.onend = () => {
+      // If we are still supposed to be listening (e.g. continuous stopped unexpectedly),
+      // we could potentially restart it here, but for now we'll just stop.
       setIsListening(false);
     };
     
-    recognition.start();
-  }, [language]);
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error("Failed to start speech recognition:", e);
+      setSpeechError(
+        language === "en"
+          ? "Failed to start microphone. Note: Speech Recognition over a local network IP requires a secure HTTPS connection."
+          : "Échec du démarrage du microphone. Remarque : La reconnaissance vocale sur un réseau local nécessite une connexion HTTPS."
+      );
+      setIsListening(false);
+    }
+  }, [language, isListening, phrase]);
 
   // Copy to clipboard
   const copyToClipboard = useCallback(async () => {
@@ -253,6 +308,7 @@ export function PhraseTranslator() {
   // Clear phrase
   const clearPhrase = useCallback(() => {
     setPhrase("");
+    setSpeechError(null);
   }, []);
 
   return (
@@ -266,19 +322,22 @@ export function PhraseTranslator() {
           <div className="flex items-center gap-2">
             {speechSupported && (
               <button
-                onClick={startListening}
-                disabled={isListening}
+                type="button"
+                onClick={toggleListening}
                 className={`p-2 rounded-lg border transition-all ${
                   isListening
-                    ? "bg-primary text-primary-foreground border-primary animate-pulse"
+                    ? "bg-red-500/20 text-red-500 border-red-500/50 animate-pulse"
                     : "bg-secondary/50 border-border hover:border-primary/50 text-foreground"
                 }`}
-                title={language === "en" ? "Voice input" : "Entrée vocale"}
+                title={isListening 
+                  ? (language === "en" ? "Stop listening" : "Arrêter l'écoute") 
+                  : (language === "en" ? "Voice input" : "Entrée vocale")}
               >
-                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                {isListening ? <Square className="h-4 w-4 fill-current" /> : <Mic className="h-4 w-4" />}
               </button>
             )}
             <button
+              type="button"
               onClick={clearPhrase}
               disabled={!phrase}
               className="p-2 rounded-lg border bg-secondary/50 border-border hover:border-primary/50 text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-all"
@@ -300,7 +359,13 @@ export function PhraseTranslator() {
           className="w-full h-32 p-4 text-lg rounded-lg bg-background border-2 border-border focus:border-primary focus:outline-none transition-colors text-foreground placeholder:text-muted-foreground resize-none"
         />
         
-        {isListening && (
+        {speechError && (
+          <div className="flex items-center gap-2 text-red-500 text-sm">
+            {speechError}
+          </div>
+        )}
+        
+        {isListening && !speechError && (
           <div className="flex items-center gap-2 text-primary text-sm">
             <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
             {language === "en" ? "Listening..." : "Écoute en cours..."}
@@ -418,7 +483,7 @@ export function PhraseTranslator() {
 // TypeScript declarations for Web Speech API
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
   }
 }
