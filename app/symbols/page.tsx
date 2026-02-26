@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Navigation } from "@/components/navigation";
 import { hoboSymbols, thievesGuildSymbols } from "@/lib/thieves-cant-data";
 import { Shield, Compass, AlertTriangle, CircleDot, Map, Users } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -90,8 +89,7 @@ export default function SymbolsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
-      
+
       <main className="mx-auto max-w-5xl px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">

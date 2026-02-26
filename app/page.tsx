@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Navigation } from "@/components/navigation";
 import { PhraseTranslator } from "@/components/phrase-translator";
-import { cantToEnglish, englishToCant, argotToFrench } from "@/lib/thieves-cant-data";
+import { cantToEnglish, englishToCant, argotToFrench, frenchToArgot } from "@/lib/thieves-cant-data";
 import { ArrowRightLeft, Search, BookOpen, MessageSquare, Type } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -45,14 +44,40 @@ export default function TranslatorPage() {
         return matches.slice(0, 15);
       } else {
         // Cant to English
-        return cantToEnglish
-          .filter((entry) => entry.term.toLowerCase().includes(searchTerm))
-          .map((entry) => ({
-            cantTerm: entry.term,
-            translation: entry.definition,
-            category: entry.category,
-          }))
-          .slice(0, 15);
+        const cantMatches: { cantTerm: string; translation: string; category?: string }[] = [];
+        
+        // Search through the standard cantToEnglish definitions
+        cantToEnglish.forEach((entry) => {
+          if (entry.term.toLowerCase().includes(searchTerm)) {
+            cantMatches.push({
+              cantTerm: entry.term,
+              translation: entry.definition,
+              category: entry.category,
+            });
+          }
+        });
+
+        // Search through englishToCant where each English word 
+        // maps to an array of Cant words (e.g., "wealthy": ["flush", ...])
+        Object.entries(englishToCant).forEach(([english, cantTerms]) => {
+          const matchingCantTerms = cantTerms.filter(t => t.toLowerCase().includes(searchTerm));
+          
+          matchingCantTerms.forEach(term => {
+            // Avoid duplicates
+            if (!cantMatches.some(m => m.cantTerm.toLowerCase() === term.toLowerCase())) {
+              // Try to find a category from the original definition if possible
+              const existingDef = cantToEnglish.find(e => e.term.toLowerCase() === term.toLowerCase());
+              
+              cantMatches.push({
+                cantTerm: term,
+                translation: english, // The key in englishToCant is the translation
+                category: existingDef?.category || 'Descriptive',
+              });
+            }
+          });
+        });
+
+        return cantMatches.slice(0, 15);
       }
     } else {
       // French - Use authentic "Argot des Voleurs" (1849)
@@ -105,7 +130,6 @@ export default function TranslatorPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
       
       <main className="mx-auto max-w-4xl px-4 py-8">
         {/* Hero Section */}

@@ -84,6 +84,7 @@ const translations = {
     "category.Food & Drink": "Food & Drink",
     "category.Clothing": "Clothing",
     "category.Animals": "Animals",
+    "category.Descriptive": "Descriptive",
     "category.General": "General",
     
     // Category descriptions
@@ -178,6 +179,7 @@ const translations = {
     "category.Food & Drink": "Nourriture et Boisson",
     "category.Clothing": "Vêtements",
     "category.Animals": "Animaux",
+    "category.Descriptive": "Descriptif",
     "category.General": "Général",
     
     // Category descriptions

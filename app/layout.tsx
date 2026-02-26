@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { UnifrakturCook, Crimson_Text } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { I18nProvider } from '@/lib/i18n'
+import { Navigation } from "@/components/navigation";
 import { Footer } from '@/components/footer'
 import './globals.css'
 
@@ -22,21 +23,8 @@ export const metadata: Metadata = {
   description: "Translate English or French to Thieves Cant for your D&D 5e Rogue character. Includes dictionary, symbols, and hobo signs.",
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/favicon.png',
+    apple: '/favicon.png',
   },
 }
 
@@ -49,6 +37,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${_unifraktur.variable} ${_crimson.variable} font-serif antialiased min-h-screen flex flex-col`}>
         <I18nProvider>
+          <Navigation />
           <main className="flex-1">
             {children}
           </main>

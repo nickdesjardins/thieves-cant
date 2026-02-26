@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Navigation } from "@/components/navigation";
 import { cantToEnglish, categories, argotToFrench, frenchCategories } from "@/lib/thieves-cant-data";
 import { Search, Filter, BookMarked } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -55,7 +54,6 @@ export default function DictionaryPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
       
       <main className="mx-auto max-w-5xl px-4 py-8">
         {/* Header */}
