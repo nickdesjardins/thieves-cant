@@ -1280,6 +1280,11 @@ export const hoboSymbols: HoboSymbol[] = [
   { name: "Spiral", meaning: "Police station", symbol: "🌀", category: "Warning" },
   { name: "Stars", meaning: "Sleep in this barn", symbol: "★", category: "Resource" },
   { name: "Teeth Shape", meaning: "Mean dog", symbol: "⋏", category: "Warning" },
+  { name: "Four Straight Lines", meaning: "Housewife will feed for work", symbol: "||||", category: "Resource" },
+  { name: "Open Mug", meaning: "This town serves alcohol", symbol: "∪", category: "Info" },
+  { name: "House with Slash", meaning: "Heavily guarded home", symbol: "⌂/", category: "Warning" },
+  { name: "Two Overlapping Squares", meaning: "Can get anything by threatening", symbol: "⧉", category: "Warning" },
+  { name: "Double Diamond", meaning: "Keep quiet or baby is here", symbol: "⚭", category: "Info" },
 ];
 
 // D&D Thieves Guild Symbols
@@ -1304,6 +1309,12 @@ export const thievesGuildSymbols = [
   { name: "Feather", meaning: "Scribe for forged documents", symbol: "🪶", category: "Resource" },
   { name: "Ship", meaning: "Smuggling route", symbol: "⛵", category: "Route" },
   { name: "Horse", meaning: "Quick escape available", symbol: "🐴", category: "Escape" },
+  { name: "Crossed Swords", meaning: "Danger or monsters ahead", symbol: "⚔️", category: "Warning" },
+  { name: "Gold Coin", meaning: "Loot or treasure inside", symbol: "🪙", category: "Resource" },
+  { name: "Footprints", meaning: "Keep moving / don't stop", symbol: "👣", category: "Direction" },
+  { name: "Hand Sign", meaning: "Wait here or halt", symbol: "✋", category: "Direction" },
+  { name: "Open Door", meaning: "Open or unsecured", symbol: "🚪", category: "Info" },
+  { name: "Sparkles", meaning: "Magic presence or spellcaster", symbol: "✨", category: "Info" },
 ];
 
 export const categories = [

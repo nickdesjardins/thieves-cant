@@ -52,6 +52,12 @@ const symbolTranslations: Record<string, { name: string; meaning: string }> = {
   "Escape Route": { name: "Voie d'Évasion", meaning: "Sortie d'urgence ou évasion rapide" },
   "Corrupt Official": { name: "Officiel Corrompu", meaning: "Garde ou officiel acceptant les pots-de-vin" },
   "Master Thief": { name: "Maître Voleur", meaning: "Voleur de haut rang de la guilde dans les environs" },
+  "Crossed Swords": { name: "Épées Croisées", meaning: "Danger ou monstres" },
+  "Gold Coin": { name: "Pièce d'Or", meaning: "Butin ou trésor à l'intérieur" },
+  "Footprints": { name: "Empreintes", meaning: "Continuez à bouger, ne vous arrêtez pas" },
+  "Hand Sign": { name: "Signe de la Main", meaning: "Attendez ici, halte" },
+  "Open Door": { name: "Porte Ouverte", meaning: "Ouverte ou non sécurisée" },
+  "Sparkles": { name: "Étincelles", meaning: "Présence magique ou lanceur de sorts" },
   // Hobo Signs
   "Danger": { name: "Danger", meaning: "Endroit dangereux, évitez" },
   "Kind Woman": { name: "Femme Bienveillante", meaning: "Femme gentille vit ici" },
@@ -65,6 +71,11 @@ const symbolTranslations: Record<string, { name: string; meaning: string }> = {
   "Unsafe Place": { name: "Lieu Dangereux", meaning: "Évitez cet endroit" },
   "Fresh Water": { name: "Eau Fraîche", meaning: "Eau potable disponible" },
   "Wealthy Person": { name: "Personne Riche", meaning: "Personne riche vit ici" },
+  "Four Straight Lines": { name: "Quatre Lignes", meaning: "On vous donnera à manger pour du travail" },
+  "Open Mug": { name: "Tasse Ouverte", meaning: "Cette ville sert de l'alcool" },
+  "House with Slash": { name: "Maison Barrée", meaning: "Maison sous haute garde" },
+  "Two Overlapping Squares": { name: "Deux Carrés Croisés", meaning: "On peut tout obtenir par la menace" },
+  "Double Diamond": { name: "Double Losange", meaning: "Gardez le silence, ou bébé présent" },
 };
 
 export default function SymbolsPage() {
