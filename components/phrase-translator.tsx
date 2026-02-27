@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { englishToCant, frenchToArgot, cantToEnglish, argotToFrench } from "@/lib/thieves-cant-data";
 import { useI18n } from "@/lib/i18n";
-import { Mic, Square, Volume2, Copy, Check, RefreshCw } from "lucide-react";
+import { Mic, Square, Volume2, Copy, Check, RefreshCw, ArrowLeftRight } from "lucide-react";
 
 interface TranslatedWord {
   original: string;
@@ -15,6 +15,7 @@ interface TranslatedWord {
 export function PhraseTranslator() {
   const { language } = useI18n();
   const [phrase, setPhrase] = useState("");
+  const [direction, setDirection] = useState<"to-cant" | "from-cant">("to-cant");
   const [isListening, setIsListening] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
@@ -76,7 +77,7 @@ export function PhraseTranslator() {
 
   const stopWords = language === "en" ? englishStopWords : frenchStopWords;
 
-  // Build lookup maps for faster translation
+  // Build lookup map for forward translation (EN/FR → Cant/Argot)
   const translationMap = useMemo(() => {
     const map = new Map<string, string[]>();
     
@@ -136,68 +137,173 @@ export function PhraseTranslator() {
     return map;
   }, [language, stopWords]);
 
+  // Build reverse lookup map for Cant/Argot → EN/FR
+  const reverseTranslationMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+
+    if (language === "en") {
+      // cantToEnglish: DictionaryEntry[] — term is the Cant word, definition is English
+      cantToEnglish.forEach((entry) => {
+        const key = entry.term.toLowerCase();
+        // Each definition may contain multiple English meanings separated by semicolons
+        const meanings = entry.definition.split(/[;]+/).map((s) => s.trim()).filter(Boolean);
+        if (!map.has(key)) {
+          map.set(key, meanings);
+        } else {
+          const existing = map.get(key)!;
+          meanings.forEach((m) => { if (!existing.includes(m)) existing.push(m); });
+        }
+      });
+    } else {
+      // argotToFrench: ArgotEntry[] — term is the Argot word, definition is French
+      argotToFrench.forEach((entry) => {
+        const key = entry.term.toLowerCase();
+        const meanings = entry.definition.split(/[;]+/).map((s) => s.trim()).filter(Boolean);
+        if (!map.has(key)) {
+          map.set(key, meanings);
+        } else {
+          const existing = map.get(key)!;
+          meanings.forEach((m) => { if (!existing.includes(m)) existing.push(m); });
+        }
+      });
+    }
+
+    return map;
+  }, [language]);
+
+  // Toggle direction and clear the phrase
+  const toggleDirection = useCallback(() => {
+    setDirection((d) => (d === "to-cant" ? "from-cant" : "to-cant"));
+    setPhrase("");
+    setSpeechError(null);
+  }, []);
+
+
   // Translate the phrase
   const translatedWords = useMemo((): TranslatedWord[] => {
     if (!phrase.trim()) return [];
-    
-    // Split by whitespace while keeping punctuation attached to words
-    const words = phrase.split(/(\s+)/);
-    
-    return words.map((word) => {
-      // Skip whitespace
-      if (/^\s+$/.test(word)) {
-        return { original: word, translated: word, isTranslated: false };
-      }
-      
-      // Extract punctuation
-      const punctMatch = word.match(/^([^\w]*)(\w+)([^\w]*)$/);
-      if (!punctMatch) {
-        return { original: word, translated: word, isTranslated: false };
-      }
-      
-      const [, leadingPunct, cleanWord, trailingPunct] = punctMatch;
-      const lowerWord = cleanWord.toLowerCase();
-      
-      // Skip stop words entirely
-      if (stopWords.has(lowerWord)) {
-        return { original: word, translated: word, isTranslated: false };
-      }
-      
-      // Check for exact match
-      if (translationMap.has(lowerWord)) {
-        const translations = translationMap.get(lowerWord)!;
-        const firstTranslation = translations[0];
-        
-        // Preserve original capitalization style
-        let translatedWord = firstTranslation;
-        if (cleanWord[0] === cleanWord[0].toUpperCase()) {
-          translatedWord = firstTranslation.charAt(0).toUpperCase() + firstTranslation.slice(1);
+
+    // ── Forward mode (EN/FR → Cant/Argot) ────────────────────────────────
+    if (direction === "to-cant") {
+      const words = phrase.split(/(\s+)/);
+      return words.map((word) => {
+        if (/^\s+$/.test(word)) return { original: word, translated: word, isTranslated: false };
+        const punctMatch = word.match(/^([^\w]*)(\w+(?:['-]\w+)*)([^\w]*)$/);
+        if (!punctMatch) return { original: word, translated: word, isTranslated: false };
+        const [, leadingPunct, cleanWord, trailingPunct] = punctMatch;
+        const lowerWord = cleanWord.toLowerCase();
+        if (stopWords.has(lowerWord)) return { original: word, translated: word, isTranslated: false };
+        if (translationMap.has(lowerWord)) {
+          const translations = translationMap.get(lowerWord)!;
+          let translatedWord = translations[0];
+          if (cleanWord[0] === cleanWord[0].toUpperCase())
+            translatedWord = translatedWord.charAt(0).toUpperCase() + translatedWord.slice(1);
+          return { original: word, translated: leadingPunct + translatedWord + trailingPunct, isTranslated: true, alternatives: translations.slice(1) };
         }
-        
-        return {
-          original: word,
-          translated: leadingPunct + translatedWord + trailingPunct,
-          isTranslated: true,
-          alternatives: translations.length > 1 ? translations.slice(1) : undefined,
-        };
+        for (const [key, translations] of translationMap.entries()) {
+          if (lowerWord.includes(key) && key.length > 3) {
+            return { original: word, translated: leadingPunct + translations[0] + trailingPunct, isTranslated: true, alternatives: translations.slice(1) };
+          }
+        }
+        return { original: word, translated: word, isTranslated: false };
+      });
+    }
+
+    // ── Reverse mode (Cant/Argot → EN/FR): greedy multi-word scanner ─────
+    // tokens alternates between content-words and whitespace: [word, " ", word, " ", …]
+    const tokens = phrase.split(/(\s+)/);
+
+    const stripPunct = (t: string) => {
+      const m = t.match(/^([^\w]*)(\w+(?:['-]\w+)*)([^\w]*)$/);
+      return m ? { lead: m[1], clean: m[2], trail: m[3] } : null;
+    };
+
+    const result: TranslatedWord[] = [];
+    let i = 0;
+
+    while (i < tokens.length) {
+      const token = tokens[i];
+
+      // Pass whitespace straight through
+      if (/^\s+$/.test(token)) {
+        result.push({ original: token, translated: token, isTranslated: false });
+        i++;
+        continue;
       }
-      
-      // Check for partial matches (for compound words or phrases)
-      for (const [key, translations] of translationMap.entries()) {
-        if (lowerWord.includes(key) && key.length > 3) {
+
+      const p0 = stripPunct(token);
+      if (!p0) {
+        result.push({ original: token, translated: token, isTranslated: false });
+        i++;
+        continue;
+      }
+
+      // Try longest span first (4 words down to 2), then single-word fallback.
+      // Content words are at indices i, i+2, i+4 (odd slots are whitespace).
+      const MAX_SPAN = 4;
+      let matched = false;
+
+      for (let span = MAX_SPAN; span >= 2; span--) {
+        // Collect content-word indices for this span
+        const wordIndices: number[] = [];
+        for (let k = 0; k < span; k++) {
+          const idx = i + k * 2;
+          if (idx >= tokens.length || /^\s+$/.test(tokens[idx])) break;
+          wordIndices.push(idx);
+        }
+        if (wordIndices.length < span) continue;
+
+        // Build the candidate key, e.g. "adam tiler"
+        const candidateKey = wordIndices
+          .map((idx) => (stripPunct(tokens[idx])?.clean ?? tokens[idx]).toLowerCase())
+          .join(" ");
+
+        if (reverseTranslationMap.has(candidateKey)) {
+          const translations = reverseTranslationMap.get(candidateKey)!;
+          const lastIdx = wordIndices[wordIndices.length - 1];
+          const originalSpan = tokens.slice(i, lastIdx + 1).join("");
+          const pLast = stripPunct(tokens[lastIdx]);
           const firstTranslation = translations[0];
-          return {
-            original: word,
-            translated: leadingPunct + firstTranslation + trailingPunct,
+          const display =
+            p0.clean[0] === p0.clean[0].toUpperCase()
+              ? firstTranslation.charAt(0).toUpperCase() + firstTranslation.slice(1)
+              : firstTranslation;
+          result.push({
+            original: originalSpan,
+            translated: p0.lead + display + (pLast?.trail ?? ""),
             isTranslated: true,
             alternatives: translations.length > 1 ? translations.slice(1) : undefined,
-          };
+          });
+          i = lastIdx + 1; // skip past all consumed tokens
+          matched = true;
+          break;
         }
       }
-      
-      return { original: word, translated: word, isTranslated: false };
-    });
-  }, [phrase, translationMap]);
+
+      if (matched) continue;
+
+      // Single-word fallback
+      const lowerWord = p0.clean.toLowerCase();
+      if (reverseTranslationMap.has(lowerWord)) {
+        const translations = reverseTranslationMap.get(lowerWord)!;
+        let translatedWord = translations[0];
+        if (p0.clean[0] === p0.clean[0].toUpperCase())
+          translatedWord = translatedWord.charAt(0).toUpperCase() + translatedWord.slice(1);
+        result.push({
+          original: token,
+          translated: p0.lead + translatedWord + p0.trail,
+          isTranslated: true,
+          alternatives: translations.length > 1 ? translations.slice(1) : undefined,
+        });
+      } else {
+        result.push({ original: token, translated: token, isTranslated: false });
+      }
+      i++;
+    }
+
+    return result;
+  }, [phrase, direction, translationMap, reverseTranslationMap, stopWords]);
+
 
   // Get the full translated phrase as string
   const translatedPhrase = useMemo(() => {
@@ -365,13 +471,48 @@ export function PhraseTranslator() {
     setSpeechError(null);
   }, []);
 
+  // Labels that change with direction
+  const fromLabel = language === "en"
+    ? (direction === "to-cant" ? "English" : "Thieves\' Cant")
+    : (direction === "to-cant" ? "Français" : "Argot");
+  const toLabel = language === "en"
+    ? (direction === "to-cant" ? "Thieves\' Cant" : "English")
+    : (direction === "to-cant" ? "Argot" : "Français");
+
   return (
     <div className="space-y-6">
+      {/* Direction Toggle */}
+      <div className="flex items-center justify-center gap-3">
+        <span className={`text-sm font-semibold transition-colors ${
+          direction === "to-cant" ? "text-primary" : "text-muted-foreground"
+        }`}>
+          {fromLabel}
+        </span>
+        <button
+          type="button"
+          onClick={toggleDirection}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-secondary/50 hover:border-primary/50 hover:bg-primary/10 text-foreground transition-all text-xs font-medium"
+          title={direction === "to-cant"
+            ? (language === "en" ? "Switch to Cant → English" : "Passer en Argot → Français")
+            : (language === "en" ? "Switch to English → Cant" : "Passer en Français → Argot")}
+        >
+          <ArrowLeftRight className="h-3.5 w-3.5" />
+          {language === "en" ? "Switch" : "Inverser"}
+        </button>
+        <span className={`text-sm font-semibold transition-colors ${
+          direction === "from-cant" ? "text-primary" : "text-muted-foreground"
+        }`}>
+          {toLabel}
+        </span>
+      </div>
+
       {/* Input Section */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium text-foreground">
-            {language === "en" ? "Enter your phrase" : "Entrez votre phrase"}
+            {language === "en"
+              ? (direction === "to-cant" ? "Enter your phrase" : "Enter Cant phrase")
+              : (direction === "to-cant" ? "Entrez votre phrase" : "Entrez votre phrase en Argot")}
           </label>
           <div className="flex items-center gap-2">
             {speechSupported && (
@@ -406,9 +547,13 @@ export function PhraseTranslator() {
           value={phrase}
           onChange={(e) => setPhrase(e.target.value)}
           placeholder={
-            language === "en"
-              ? "Type or speak a phrase... (e.g., 'The thief stole money at night')"
-              : "Tapez ou parlez une phrase... (ex: 'Le voleur a pris l'argent la nuit')"
+            direction === "to-cant"
+              ? (language === "en"
+                  ? "Type or speak a phrase... (e.g., 'The thief stole money at night')"
+                  : "Tapez ou parlez une phrase... (ex: 'Le voleur a pris l'argent la nuit')")
+              : (language === "en"
+                  ? "Type a Cant phrase... (e.g., 'The prig tipped the blunt at darkmans')"
+                  : "Tapez une phrase en Argot... (ex: 'L\'Arnaque abloquit la balle')")
           }
           className="w-full h-32 p-4 text-lg rounded-lg bg-background border-2 border-border focus:border-primary focus:outline-none transition-colors text-foreground placeholder:text-muted-foreground resize-none"
         />
@@ -433,6 +578,7 @@ export function PhraseTranslator() {
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-foreground">
               {language === "en" ? "Translated phrase" : "Phrase traduite"}
+              {` (${toLabel})`}
               {translatedCount > 0 && (
                 <span className="ml-2 text-xs text-primary">
                   ({translatedCount} {language === "en" ? "words translated" : "mots traduits"})
@@ -491,7 +637,7 @@ export function PhraseTranslator() {
               <span className="px-2 py-0.5 bg-primary/20 text-primary rounded">
                 {language === "en" ? "word" : "mot"}
               </span>
-              <span>= {language === "en" ? "Translated to Cant" : "Traduit en Argot"}</span>
+              <span>= {language === "en" ? `Translated to ${toLabel}` : `Traduit en ${toLabel}`}</span>
             </div>
             <span className="hidden sm:inline">
               {language === "en" ? "(hover for original)" : "(survolez pour l'original)"}
@@ -507,26 +653,53 @@ export function PhraseTranslator() {
             {language === "en" ? "Tips" : "Conseils"}
           </h3>
           <ul className="text-sm space-y-1 text-muted-foreground">
-            <li>
-              {language === "en"
-                ? "Type or speak a full sentence in English"
-                : "Tapez ou parlez une phrase complète en français"}
-            </li>
-            <li>
-              {language === "en"
-                ? "Words with Cant translations will be highlighted"
-                : "Les mots avec des traductions en Argot seront surlignés"}
-            </li>
-            <li>
-              {language === "en"
-                ? "Hover over highlighted words to see the original"
-                : "Survolez les mots surlignés pour voir l'original"}
-            </li>
-            <li>
-              {language === "en"
-                ? "Some words may have multiple translations - hover to see alternatives"
-                : "Certains mots peuvent avoir plusieurs traductions - survolez pour voir les alternatives"}
-            </li>
+            {direction === "to-cant" ? (
+              <>
+                <li>
+                  {language === "en"
+                    ? "Type or speak a full sentence in English"
+                    : "Tapez ou parlez une phrase complète en français"}
+                </li>
+                <li>
+                  {language === "en"
+                    ? "Words with Cant translations will be highlighted"
+                    : "Les mots avec des traductions en Argot seront surlignés"}
+                </li>
+                <li>
+                  {language === "en"
+                    ? "Hover over highlighted words to see the original"
+                    : "Survolez les mots surlignés pour voir l'original"}
+                </li>
+                <li>
+                  {language === "en"
+                    ? "Some words may have multiple translations - hover to see alternatives"
+                    : "Certains mots peuvent avoir plusieurs traductions - survolez pour voir les alternatives"}
+                </li>
+              </>
+            ) : (
+              <>
+                <li>
+                  {language === "en"
+                    ? "Type a Cant phrase to translate it back to English"
+                    : "Tapez une phrase en Argot pour la traduire en Français"}
+                </li>
+                <li>
+                  {language === "en"
+                    ? "Recognised Cant words will be highlighted in the output"
+                    : "Les mots d'Argot reconnus seront surlignés dans la traduction"}
+                </li>
+                <li>
+                  {language === "en"
+                    ? "Hover over highlighted words to see the Cant original"
+                    : "Survolez les mots surlignés pour voir l'Argot original"}
+                </li>
+                <li>
+                  {language === "en"
+                    ? "Use the Switch button to go back to English → Cant mode"
+                    : "Utilisez le bouton Inverser pour revenir en mode Français → Argot"}
+                </li>
+              </>
+            )}
           </ul>
         </div>
       )}
