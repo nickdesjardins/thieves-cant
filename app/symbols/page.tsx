@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { hoboSymbols, thievesGuildSymbols } from "@/lib/thieves-cant-data";
+import { hoboSymbols, thievesGuildSymbols } from "@/lib/data";
 import { Shield, Compass, AlertTriangle, CircleDot, Map, Users } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 

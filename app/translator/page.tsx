@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { PhraseTranslator } from "@/components/phrase-translator";
-import { cantToEnglish, englishToCant, argotToFrench, frenchToArgot } from "@/lib/thieves-cant-data";
+import { cantToEnglish, englishToCant, argotToFrench, frenchToArgot } from "@/lib/data";
 import { ArrowRightLeft, Search, BookOpen, MessageSquare, Type } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { englishToCant, frenchToArgot, cantToEnglish, argotToFrench } from "@/lib/thieves-cant-data";
+import { englishToCant, frenchToArgot, cantToEnglish, argotToFrench } from "@/lib/data";
 import { useI18n } from "@/lib/i18n";
 import { Mic, Square, Volume2, Copy, Check, RefreshCw, ArrowLeftRight } from "lucide-react";
 
@@ -138,32 +138,55 @@ export function PhraseTranslator() {
   }, [language, stopWords]);
 
   // Build reverse lookup map for Cant/Argot → EN/FR
+  // Strategy: invert englishToCant so "Adam Tiler" → ["Thief", "Pickpocket"]
+  // Fallback to cantToEnglish definitions for terms not in englishToCant values
   const reverseTranslationMap = useMemo(() => {
     const map = new Map<string, string[]>();
 
     if (language === "en") {
-      // cantToEnglish: DictionaryEntry[] — term is the Cant word, definition is English
+      // Primary: invert englishToCant { "thief": ["Adam Tiler", ...] } → { "adam tiler": ["Thief"] }
+      for (const [englishWord, cantTerms] of Object.entries(englishToCant)) {
+        // Capitalise the English word for display
+        const displayWord = englishWord.charAt(0).toUpperCase() + englishWord.slice(1);
+        for (const cantTerm of cantTerms) {
+          const key = cantTerm.toLowerCase();
+          if (!map.has(key)) {
+            map.set(key, [displayWord]);
+          } else {
+            const existing = map.get(key)!;
+            if (!existing.includes(displayWord)) existing.push(displayWord);
+          }
+        }
+      }
+      // Fallback: add cantToEnglish entries that weren't covered above
       cantToEnglish.forEach((entry) => {
         const key = entry.term.toLowerCase();
-        // Each definition may contain multiple English meanings separated by semicolons
-        const meanings = entry.definition.split(/[;]+/).map((s) => s.trim()).filter(Boolean);
         if (!map.has(key)) {
+          const meanings = entry.definition.split(/[;]+/).map((s) => s.trim()).filter(Boolean);
           map.set(key, meanings);
-        } else {
-          const existing = map.get(key)!;
-          meanings.forEach((m) => { if (!existing.includes(m)) existing.push(m); });
         }
       });
     } else {
-      // argotToFrench: ArgotEntry[] — term is the Argot word, definition is French
+      // Primary: invert frenchToArgot { "argent": "bille, gras, pognon" } → { "bille": ["Argent"] }
+      for (const [frenchWord, argotTermsStr] of Object.entries(frenchToArgot)) {
+        const displayWord = frenchWord.charAt(0).toUpperCase() + frenchWord.slice(1);
+        const argotTerms = argotTermsStr.split(/,\s*/);
+        for (const argotTerm of argotTerms) {
+          const key = argotTerm.toLowerCase();
+          if (!map.has(key)) {
+            map.set(key, [displayWord]);
+          } else {
+            const existing = map.get(key)!;
+            if (!existing.includes(displayWord)) existing.push(displayWord);
+          }
+        }
+      }
+      // Fallback: add argotToFrench entries that weren't covered above
       argotToFrench.forEach((entry) => {
         const key = entry.term.toLowerCase();
-        const meanings = entry.definition.split(/[;]+/).map((s) => s.trim()).filter(Boolean);
         if (!map.has(key)) {
+          const meanings = entry.definition.split(/[;]+/).map((s) => s.trim()).filter(Boolean);
           map.set(key, meanings);
-        } else {
-          const existing = map.get(key)!;
-          meanings.forEach((m) => { if (!existing.includes(m)) existing.push(m); });
         }
       });
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { cantToEnglish, categories, argotToFrench, frenchCategories } from "@/lib/thieves-cant-data";
+import { cantToEnglish, categories, argotToFrench, frenchCategories } from "@/lib/data";
 import { Search, Filter, BookMarked } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
