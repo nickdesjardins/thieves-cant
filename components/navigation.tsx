@@ -13,7 +13,8 @@ export function Navigation() {
   const { language, setLanguage, t } = useI18n();
 
   const navItems = [
-    { href: "/", label: t("nav.translator") },
+    { href: "/", label: t("nav.home") },
+    { href: "/translator", label: t("nav.translator") },
     { href: "/dictionary", label: t("nav.dictionary") },
     { href: "/symbols", label: t("nav.symbols") },
   ];
