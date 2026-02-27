@@ -15,6 +15,8 @@ export interface ArgotEntry {
 export interface HoboSymbol {
   name: string;
   meaning: string;
+  nameFr?: string;
+  meaningFr?: string;
   symbol: string;
   category: string;
 }

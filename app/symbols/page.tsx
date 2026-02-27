@@ -36,48 +36,6 @@ const categoryColors: Record<string, string> = {
   Route: "bg-blue-900/30 text-blue-400 border-blue-700/30",
   Escape: "bg-blue-900/30 text-blue-400 border-blue-700/30",
 };
-
-// French translations for symbol meanings
-const symbolTranslations: Record<string, { name: string; meaning: string }> = {
-  // Guild Marks
-  "Guild Territory": { name: "Territoire de Guilde", meaning: "Zone sous contrôle de la guilde" },
-  "Safe House": { name: "Maison Sûre", meaning: "Refuge sécurisé disponible ici" },
-  "Fence Contact": { name: "Contact Receleur", meaning: "Receleur fiable dans les environs" },
-  "Guard Patrol": { name: "Patrouille de Gardes", meaning: "Attention - gardes actifs dans cette zone" },
-  "Easy Mark": { name: "Cible Facile", meaning: "Cible riche et imprudente à proximité" },
-  "Thieves Highway": { name: "Voie des Voleurs", meaning: "Route sûre par les toits" },
-  "Guild Meeting": { name: "Réunion de Guilde", meaning: "Rassemblement de la guilde ici" },
-  "Trap Warning": { name: "Attention Piège", meaning: "Piège ou alarme détecté" },
-  "Lockbox Location": { name: "Emplacement de Coffre", meaning: "Coffre-fort ou cachette à butin à proximité" },
-  "Escape Route": { name: "Voie d'Évasion", meaning: "Sortie d'urgence ou évasion rapide" },
-  "Corrupt Official": { name: "Officiel Corrompu", meaning: "Garde ou officiel acceptant les pots-de-vin" },
-  "Master Thief": { name: "Maître Voleur", meaning: "Voleur de haut rang de la guilde dans les environs" },
-  "Crossed Swords": { name: "Épées Croisées", meaning: "Danger ou monstres" },
-  "Gold Coin": { name: "Pièce d'Or", meaning: "Butin ou trésor à l'intérieur" },
-  "Footprints": { name: "Empreintes", meaning: "Continuez à bouger, ne vous arrêtez pas" },
-  "Hand Sign": { name: "Signe de la Main", meaning: "Attendez ici, halte" },
-  "Open Door": { name: "Porte Ouverte", meaning: "Ouverte ou non sécurisée" },
-  "Sparkles": { name: "Étincelles", meaning: "Présence magique ou lanceur de sorts" },
-  // Hobo Signs
-  "Danger": { name: "Danger", meaning: "Endroit dangereux, évitez" },
-  "Kind Woman": { name: "Femme Bienveillante", meaning: "Femme gentille vit ici" },
-  "Food Available": { name: "Nourriture Disponible", meaning: "Nourriture pour le travail" },
-  "Safe Camp": { name: "Campement Sûr", meaning: "Endroit sûr pour dormir" },
-  "Vicious Dog": { name: "Chien Méchant", meaning: "Chien dangereux dans les environs" },
-  "Go This Way": { name: "Allez Par Là", meaning: "Route sûre dans cette direction" },
-  "Doctor Here": { name: "Médecin Ici", meaning: "Soins médicaux disponibles" },
-  "Religious Talk": { name: "Discours Religieux", meaning: "Préparez-vous à un sermon pour de l'aide" },
-  "Courthouse": { name: "Tribunal", meaning: "Tribunal à proximité - soyez prudent" },
-  "Unsafe Place": { name: "Lieu Dangereux", meaning: "Évitez cet endroit" },
-  "Fresh Water": { name: "Eau Fraîche", meaning: "Eau potable disponible" },
-  "Wealthy Person": { name: "Personne Riche", meaning: "Personne riche vit ici" },
-  "Four Straight Lines": { name: "Quatre Lignes", meaning: "On vous donnera à manger pour du travail" },
-  "Open Mug": { name: "Tasse Ouverte", meaning: "Cette ville sert de l'alcool" },
-  "House with Slash": { name: "Maison Barrée", meaning: "Maison sous haute garde" },
-  "Two Overlapping Squares": { name: "Deux Carrés Croisés", meaning: "On peut tout obtenir par la menace" },
-  "Double Diamond": { name: "Double Losange", meaning: "Gardez le silence, ou bébé présent" },
-};
-
 export default function SymbolsPage() {
   const [activeTab, setActiveTab] = useState<SymbolTab>("guild");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -91,9 +49,12 @@ export default function SymbolsPage() {
 
   const currentCategories = [...new Set(currentSymbols.map((s) => s.category))];
 
-  const getSymbolText = (symbol: { name: string; meaning: string }) => {
-    if (language === "fr" && symbolTranslations[symbol.name]) {
-      return symbolTranslations[symbol.name];
+  const getSymbolText = (symbol: any) => {
+    if (language === "fr") {
+      return {
+        name: symbol.nameFr || symbol.name,
+        meaning: symbol.meaningFr || symbol.meaning
+      };
     }
     return symbol;
   };
